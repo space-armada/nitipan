@@ -3,7 +3,12 @@
 **Status:** open
 
 **Estimate:** medium; no open design decisions. The third option dominates on correctness: it keeps the guard and
-fixes the message on both paths.
+fixes the message on both paths. Verified 2026-11-15 against the code: the case still reproduces, since
+`TestAFencedPushFailsAsTheRulesSayForEachKindOfRemote/a_branch_that_is_not_a_fast-forward` passes by pinning the
+misleading "do not call for" refusal. The fix touches `internal/cli/push.go` (a behind-branch check in `pushOnce`
+before `gitPush`, skipping forced and non-branch specs and following the `merge-base --is-ancestor` handling in
+`guardFenceNamespace`), `internal/cli/prepush.go` (`requireFences` appends the behind-branch hint only when the hook's
+input held no branch update, so the guard still refuses), and the test case in `push_classify_test.go`.
 
 ## Observed
 
