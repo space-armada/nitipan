@@ -2,13 +2,24 @@
 
 **Status:** open
 
-**Estimate:** medium; no open design decisions. The third option dominates on correctness: it keeps the guard and
-fixes the message on both paths. Verified 2026-11-15 against the code: the case still reproduces, since
-`TestAFencedPushFailsAsTheRulesSayForEachKindOfRemote/a_branch_that_is_not_a_fast-forward` passes by pinning the
-misleading "do not call for" refusal. The fix touches `internal/cli/push.go` (a behind-branch check in `pushOnce`
-before `gitPush`, skipping forced and non-branch specs and following the `merge-base --is-ancestor` handling in
-`guardFenceNamespace`), `internal/cli/prepush.go` (`requireFences` appends the behind-branch hint only when the hook's
-input held no branch update, so the guard still refuses), and the test case in `push_classify_test.go`.
+**Estimate:** medium; open design decisions, named below. The third option in Fix keeps the guard and fixes the
+message on both paths. It still reproduces on 2026-11-15:
+`TestAFencedPushFailsAsTheRulesSayForEachKindOfRemote/a_branch_that_is_not_a_fast-forward` passes, and it pins the
+misleading "do not call for" refusal. The fix touches `internal/cli/push.go`, `internal/cli/prepush.go`, the test case
+in `push_classify_test.go`, and `docs/reference/pushing.md`. A bug sweep's design critic found these decisions open:
+
+- Where the pusher's behind-branch check sits. It should come after `analyze` in `pushOnce`. It should run only when
+  the plan has fence writes, because a push with no writes goes without `--atomic`. There git lands the branches that
+  fast-forward and rejects only the behind one, with its own clear message. An ungated check would refuse both. A
+  remote tip that is missing locally already fails closed in `analyze`, so the check never sees that case.
+- Which condition adds the hook's hint. The Fix option says "the fence refs it sees would be called for by the agent's
+  leases". The triage said "the hook's input held no branch update". Under the second condition, the attack in
+  `TestAnAgentCannotPushAFenceRefItsLeasesDoNotCallFor` also gets the "branch may be behind" hint. A hand-run push of
+  `main feature` with a behind main gets no hint. The lease-based condition avoids both problems. It needs the keys
+  passed into `requireFences`, with `fenceref.Parse` and `fenceplan.Covering`.
+- The exit status of the new pusher failure. Today a behind branch exits 3 (`ErrRefused`), because the hook prints
+  `nitipan:`. Code 3 means an overlapping lease blocks the claim. A plain error would exit 1, which matches git's own
+  rejection under `fence=false`. Scripts can see the change.
 
 ## Observed
 
