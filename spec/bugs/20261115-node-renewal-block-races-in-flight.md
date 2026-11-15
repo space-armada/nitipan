@@ -2,7 +2,30 @@
 
 **Status:** open
 
-**Estimate:** small; no open design decisions. Two files at most: `internal/node/helpers_test.go` and `internal/node/lease_test.go`.
+**Estimate:** small; one open design decision, the regression test's shape. The fix stays in
+`internal/node/helpers_test.go` and `internal/node/lease_test.go`. A bug sweep's design critic disputed the triage's
+"no open design decisions". The test shape in the triage notes below cannot fail reliably before the fix. A check
+that `blockRenewals(true)` "has not returned" can pass on unfixed code when the goroutine has not run yet. Waiting for
+the return instead hangs once the fix is in. The options:
+
+- A wait point in the rig. The drain loop signals a `parked` channel before it waits, and the test selects on `done`
+  against `parked`. No timer is needed. The wait point does not exist on unfixed code, so it must land first as a
+  no-op for the test to fail before the fix.
+- An assertion on the outcome, with polling like the existing `eventually` helper. It leaves a small race.
+- Record that the race cannot be reproduced deterministically, and that the test pins the fix, not the bug.
+
+The critic also found these points about the fix, none of them a design call:
+
+- The decrement must run on both exits. When the intercept answers a renewal with 503, the wrapper returns before the
+  broker handler, so the count must drop in a `defer` taken right after the increment. Otherwise round 2 of
+  `TestLapsedDuringSleepIsRevivedWithOneNoticePerLapse` blocks forever.
+- The drain wait needs a bound that fails with a clear message, not a hang until go's test timeout.
+- The test's gate must also open on cleanup and on request cancellation, as `node_test.go` does near line 793.
+  `httptest.Server.Close` waits for outstanding handlers.
+- `newOtherNode` builds a fresh `rig`, but the server's handler captures the original one. `other.blockRenewals(true)`
+  would block nothing and wait on a zero count. No caller does that today. Sharing the intercept and counter behind one
+  pointer would make the mistake impossible. The `mailPair` wrapper in `mail_test.go` reads the intercept too, without
+  counting.
 
 ## Observed
 
