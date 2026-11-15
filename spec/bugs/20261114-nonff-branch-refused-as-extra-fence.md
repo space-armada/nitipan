@@ -2,6 +2,9 @@
 
 **Status:** open
 
+**Estimate:** medium; no open design decisions. The third option dominates on correctness: it keeps the guard and
+fixes the message on both paths.
+
 ## Observed
 
 An agent that holds a lease runs `nitipan push origin main` while `origin/main` has moved ahead, so the push is not a
