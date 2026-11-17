@@ -2,6 +2,12 @@
 
 **Status:** open
 
+**Estimate:** large; non-trivial design decisions. The Fix section lists four options and records no choice. Splitting
+the package moves test helpers and changes the layout. Retiring tests needs a judgment about which contracts another
+test already owns. Raising `-timeout` is ruled out by the testing standard.
+
+**Verified:** 2026-11-15. `go test -race -count=1 ./internal/cli` passed in 560.4 s on the current build, about 40 s under the 600 s limit. The bug still reproduces as a margin problem.
+
 ## Observed
 
 `make test` runs `go test -race ./...` with no `-timeout`, so each package gets go's default of 10 minutes. On this
